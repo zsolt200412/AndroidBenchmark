@@ -2,10 +2,12 @@ package com.example.androidbenchmark.benchmark
 
 import kotlin.random.Random
 
-val randomInts: IntArray = IntArray(1000) { Random.nextInt() }
-val arraySize = 1000;
-var duration: Long = -1L;
+val arraySize = 10000
+val randomInts: IntArray = IntArray(arraySize) { Random.nextInt() }
+
 class CPUBenchmark {
+    private var duration: Long = -1L
+
     fun runTest(): Int {
         val start = System.currentTimeMillis()
         for (i in 0 until randomInts.size - 1) {
@@ -23,6 +25,6 @@ class CPUBenchmark {
     }
 
     fun computeArithmetic(): Long {
-        return runTest() / arraySize.toLong()
+        return duration * 1000 / arraySize.toLong()
     }
 }

@@ -9,6 +9,8 @@ import kotlin.random.Random
 val array_size = 10000
 
 class MemoryBenchmark {
+    private var duration: Long = -1L
+    
     fun runTest(): Int {
         val memoryIntArray: IntArray = IntArray(array_size) { it }
         val startTime = System.currentTimeMillis()
@@ -22,12 +24,12 @@ class MemoryBenchmark {
             val temp = memoryIntArray[i]
         }
         val endTime = System.currentTimeMillis()
-        val duration = endTime - startTime
+        duration = endTime - startTime
         println("Memory operations took ${duration} ms")
         return duration.toInt()
     }
 
     fun computeMemoryScore(): Long{
-        return array_size.toLong() / runTest().toLong()
+        return array_size.toLong() / duration
     }
 }
