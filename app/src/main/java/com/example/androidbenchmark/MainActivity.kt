@@ -9,15 +9,19 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.lifecycleScope
 import com.example.androidbenchmark.benchmark.BenchmarkManager
 import com.example.androidbenchmark.benchmark.GPUBenchmark
+import com.example.androidbenchmark.benchmark.ResultManager
+import com.example.androidbenchmark.ui.components.ChartView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private lateinit var benchmarkManager: BenchmarkManager
+    private lateinit var resultManager: ResultManager
     private lateinit var cpuScoreText: TextView
     private lateinit var memoryScoreText: TextView
     private lateinit var gpuScoreText: TextView
@@ -25,7 +29,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var gpuStatusText: TextView
     private lateinit var runBenchmarkButton: Button
     private lateinit var showGpuButton: Button
-    
+    private lateinit var chartComposeView: ComposeView
+
     private var glSurfaceView: GLSurfaceView? = null
     private var isGpuDisplayVisible = false
 
@@ -35,6 +40,7 @@ class MainActivity : ComponentActivity() {
         
         initViews()
         benchmarkManager = BenchmarkManager(this)
+        resultManager = ResultManager()
         
         // Set up button listeners
         runBenchmarkButton.setOnClickListener {
@@ -57,6 +63,11 @@ class MainActivity : ComponentActivity() {
         gpuStatusText = findViewById(R.id.gpuStatusText)
         runBenchmarkButton = findViewById(R.id.runBenchmarkButton)
         showGpuButton = findViewById(R.id.showGpuButton)
+        chartComposeView = findViewById(R.id.chartComposeView)
+
+        chartComposeView.setContent {
+            ChartView(null)
+        }
     }
     
     private fun runAllBenchmarks() {
@@ -72,11 +83,17 @@ class MainActivity : ComponentActivity() {
                 val results = withContext(Dispatchers.Default) {
                     benchmarkManager.runBenchmarksAndGetResults()
                 }
+
+                val processedResults = resultManager.processResults(results)
                 
                 // Update UI on main thread
                 cpuScoreText.text = "Score: ${results.cpuScore}"
                 memoryScoreText.text = "Score: ${results.memoryScore}"
                 gpuScoreText.text = "Score: ${results.gpuScore} FPS"
+
+                chartComposeView.setContent {
+                    ChartView(processedResults)
+                }
                 
                 runBenchmarkButton.isEnabled = true
                 
@@ -125,20 +142,20 @@ class MainActivity : ComponentActivity() {
                 }
                 
                 // Run a separate benchmark for scoring in background
-                val score = withContext(Dispatchers.Default) {
+                val result = withContext(Dispatchers.Default) {
                     val gpuBenchmark = GPUBenchmark()
                     gpuBenchmark.runTest(this@MainActivity, 300) // Shorter test for display
                 }
                 
                 // Update results on main thread
                 withContext(Dispatchers.Main) {
-                    gpuStatusText.text = "GPU Score: $score FPS"
-                    gpuScoreText.text = "Score: $score FPS"
+                    gpuStatusText.text = "GPU Score: ${result.score} FPS"
+                    gpuScoreText.text = "Score: ${result.score} FPS"
                     
                     // Keep the visual display running
                     Handler(Looper.getMainLooper()).postDelayed({
                         if (isGpuDisplayVisible) {
-                            gpuStatusText.text = "GPU benchmark complete - Score: $score FPS\nVisualization running..."
+                            gpuStatusText.text = "GPU benchmark complete - Score: ${result.score} FPS\nVisualization running..."
                         }
                     }, 2000)
                 }

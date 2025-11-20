@@ -11,16 +11,21 @@ import java.nio.FloatBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
+data class GpuResult(
+    val score: Int,
+    val rendererName: String
+)
+
 class GPUBenchmark {
     private var glSurfaceView: GLSurfaceView? = null
     private var renderer: BenchmarkRenderer? = null
     
-    fun runTest(context: Context, numFrames: Int = 1000): Int {
+    fun runTest(context: Context, numFrames: Int = 1000): GpuResult {
         return try {
             // Run headless with an offscreen EGL PBuffer so rendering actually occurs
             runOffscreen(numFrames)
         } catch (e: Exception) {
-            0
+            GpuResult(0, "Error")
         }
     }
 
@@ -31,12 +36,12 @@ class GPUBenchmark {
     }
 
     // Headless EGL offscreen rendering to ensure frames are produced without attaching a view
-    private fun runOffscreen(targetFrames: Int, width: Int = 720, height: Int = 1280): Int {
+    private fun runOffscreen(targetFrames: Int, width: Int = 720, height: Int = 1280): GpuResult {
         val display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
-        if (display == EGL14.EGL_NO_DISPLAY) return 0
+        if (display == EGL14.EGL_NO_DISPLAY) return GpuResult(0, "EGL Error")
 
         val version = IntArray(2)
-        if (!EGL14.eglInitialize(display, version, 0, version, 1)) return 0
+        if (!EGL14.eglInitialize(display, version, 0, version, 1)) return GpuResult(0, "EGL Init Failed")
 
         val attribList = intArrayOf(
             EGL14.EGL_RED_SIZE, 8,
@@ -52,7 +57,7 @@ class GPUBenchmark {
         val configs = arrayOfNulls<android.opengl.EGLConfig>(1)
         if (!EGL14.eglChooseConfig(display, attribList, 0, configs, 0, 1, numConfigs, 0) || numConfigs[0] <= 0) {
             EGL14.eglTerminate(display)
-            return 0
+            return GpuResult(0, "EGL Config Failed")
         }
 
         val contextAttribs = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
@@ -61,11 +66,14 @@ class GPUBenchmark {
         val surface = EGL14.eglCreatePbufferSurface(display, configs[0], surfaceAttribs, 0)
         if (context == null || context == EGL14.EGL_NO_CONTEXT || surface == null || surface == EGL14.EGL_NO_SURFACE) {
             EGL14.eglTerminate(display)
-            return 0
+            return GpuResult(0, "EGL Surface/Context Failed")
         }
 
         EGL14.eglMakeCurrent(display, surface, surface, context)
         try {
+            // Get renderer name while context is current
+            val rendererName = GLES20.glGetString(GLES20.GL_RENDERER) ?: "Unknown GPU"
+
             val benchRenderer = BenchmarkRenderer(targetFrames)
             renderer = benchRenderer
             benchRenderer.onSurfaceCreated(null, null)
@@ -77,7 +85,7 @@ class GPUBenchmark {
                 GLES20.glFinish()
             }
 
-            return benchRenderer.getGPUScore()
+            return GpuResult(benchRenderer.getGPUScore(), rendererName)
         } finally {
             EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
             EGL14.eglDestroySurface(display, surface)
@@ -205,7 +213,8 @@ class GPUBenchmark {
             Matrix.setLookAtM(viewMatrix, 0, 0f, 0f, 10f, 0f, 0f, 0f, 0f, 1f, 0f)
             
             // Render multiple objects with different transformations
-            for (i in 0 until 5) {
+            // Increased from 5 to 10 to double the computational load
+            for (i in 0 until 10) {
                 renderScene(i)
                 applyLighting()
                 applyShaders()
@@ -234,10 +243,12 @@ class GPUBenchmark {
             Matrix.setIdentityM(modelMatrix, 0)
             
             // Apply transformations for multiple objects
+            // Use modulo to stack objects in the same visual space, effectively doubling the rendering load
+            // compared to the previous 5 spread-out objects.
             Matrix.translateM(modelMatrix, 0, 
-                (objectIndex - 2) * 2.5f, 
+                ((objectIndex % 5) - 2) * 2.5f, 
                 kotlin.math.sin((objectIndex + frameCount) * 0.1).toFloat() * 2f, 
-                0f
+                (objectIndex / 5) * -0.5f // Slight Z offset to avoid z-fighting
             )
             Matrix.rotateM(modelMatrix, 0, frameCount * 2f + objectIndex * 45f, 1f, 1f, 0f)
             
