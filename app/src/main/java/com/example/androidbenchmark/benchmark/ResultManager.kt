@@ -20,13 +20,10 @@ class ResultManager {
         val cpuFrequency: String,
         val gpuName: String,
         val screenResolution: String
-    )
+    ){}
 
-    fun processResults(results: BenchmarkResults): ProcessedResult {
+    {fun processResults(results: BenchmarkResults): ProcessedResult {
         // Calculate total score. 
-        // Since GPU is in FPS (low number) and others are high numbers, we weight GPU.
-        // e.g. 60 FPS * 1000 = 60,000 points equivalent
-        val weightedGpu = results.gpuScore * 1000
         val totalScore = results.cpuScore + results.memoryScore + weightedGpu
 
         return ProcessedResult(
@@ -42,5 +39,5 @@ class ResultManager {
             gpuName = results.gpuName,
             screenResolution = results.screenResolution
         )
-    }
+    }}
 }
