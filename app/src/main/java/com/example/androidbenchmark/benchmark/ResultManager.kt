@@ -22,9 +22,9 @@ class ResultManager {
         val screenResolution: String
     ){}
 
-    {fun processResults(results: BenchmarkResults): ProcessedResult {
+        fun processResults(results: BenchmarkResults): ProcessedResult {
         // Calculate total score. 
-        val totalScore = results.cpuScore + results.memoryScore + weightedGpu
+        val totalScore = results.cpuScore + results.memoryScore + results.gpuScore
 
         return ProcessedResult(
             cpuScore = results.cpuScore,
@@ -39,5 +39,5 @@ class ResultManager {
             gpuName = results.gpuName,
             screenResolution = results.screenResolution
         )
-    }}
+    }
 }
