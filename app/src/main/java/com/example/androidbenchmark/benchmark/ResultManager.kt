@@ -3,8 +3,7 @@ package com.example.androidbenchmark.benchmark
 import android.os.Build
 
 /**
- * Placeholder for aggregating and persisting benchmark results.
- * Implementation and data model will be added later.
+ * Aggregating and persisting benchmark results with multiple test runs.
  */
 class ResultManager {
 
@@ -19,12 +18,21 @@ class ResultManager {
         val cpuCoreCount: Int,
         val cpuFrequency: String,
         val gpuName: String,
-        val screenResolution: String
-    ){}
+        val screenResolution: String,
+        val cpuIntegerTestResults: List<CPUTestResult> = emptyList(),
+        val cpuFloatingPointTestResults: List<CPUTestResult> = emptyList(),
+        val memoryTestResults: List<MemoryTestResult> = emptyList(),
+        val memoryInfo: MemoryInfo? = null
+    )
 
-        fun processResults(results: BenchmarkResults): ProcessedResult {
+    fun processResults(results: BenchmarkResults): ProcessedResult {
         // Calculate total score. 
         val totalScore = results.cpuScore + results.memoryScore + results.gpuScore
+
+        // Split CPU results into integer and floating-point tests
+        // Integer tests use sizes up to ~15K, floating-point tests use 100K+
+        val integerTests = results.cpuTestResults.filter { it.size < 100000 } // Array sizes for sorting
+        val floatingPointTests = results.cpuTestResults.filter { it.size >= 100000 } // Iteration counts for FP
 
         return ProcessedResult(
             cpuScore = results.cpuScore,
@@ -37,7 +45,11 @@ class ResultManager {
             cpuCoreCount = results.cpuCoreCount,
             cpuFrequency = results.cpuFrequency,
             gpuName = results.gpuName,
-            screenResolution = results.screenResolution
+            screenResolution = results.screenResolution,
+            cpuIntegerTestResults = integerTests,
+            cpuFloatingPointTestResults = floatingPointTests,
+            memoryTestResults = results.memoryTestResults,
+            memoryInfo = results.memoryInfo
         )
     }
 }

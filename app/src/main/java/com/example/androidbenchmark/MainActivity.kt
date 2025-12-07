@@ -77,18 +77,81 @@ class MainActivity : ComponentActivity() {
         gpuScoreText.text = "Score: Running..."
         runBenchmarkButton.isEnabled = false
         
+        // Clear previous chart results
+        chartComposeView.setContent {
+            ChartView(null)
+        }
+        
         lifecycleScope.launch {
             try {
-                // Run benchmarks in background thread
+                // Update status: Starting CPU tests
+                withContext(Dispatchers.Main) {
+                    cpuScoreText.text = "Running integer tests (1/3)..."
+                }
+                
+                // Run benchmarks in background thread with progress updates
                 val results = withContext(Dispatchers.Default) {
-                    benchmarkManager.runBenchmarksAndGetResults()
+                    // CPU Integer tests
+                    withContext(Dispatchers.Main) {
+                        cpuScoreText.text = "Running integer tests (bubble sort)..."
+                    }
+                    
+                    val cpuBenchmark = com.example.androidbenchmark.benchmark.CPUBenchmark()
+                    val cpuMultipleTests = cpuBenchmark.runMultipleSizeTests()
+                    
+                    // CPU Floating-Point tests
+                    withContext(Dispatchers.Main) {
+                        cpuScoreText.text = "Running floating-point tests..."
+                    }
+                    
+                    val cpuFloatingPointTests = cpuBenchmark.runMultipleFloatingPointTests()
+                    val allCpuTests = cpuMultipleTests + cpuFloatingPointTests
+                    
+                    val cpuRes = cpuBenchmark.computeCpuScore(allCpuTests)
+                    
+                    // Memory tests
+                    withContext(Dispatchers.Main) {
+                        cpuScoreText.text = "Score: ${cpuRes} OPS"
+                        memoryScoreText.text = "Running matrix tests (2/3)..."
+                    }
+                    
+                    val memoryBenchmark = com.example.androidbenchmark.benchmark.MemoryBenchmark()
+                    val memoryMultipleTests = memoryBenchmark.runMultipleSizeTests()
+                    val memoryRes = memoryBenchmark.computeMemoryScore(memoryMultipleTests)
+                    val memoryInfo = memoryBenchmark.getMemoryInfo()
+                    
+                    // GPU test
+                    withContext(Dispatchers.Main) {
+                        memoryScoreText.text = "Score: ${memoryRes} OPS"
+                        gpuScoreText.text = "Running GPU test (3/3)..."
+                    }
+                    
+                    val gpuBenchmark = com.example.androidbenchmark.benchmark.GPUBenchmark()
+                    val gpuRes = gpuBenchmark.runTest(this@MainActivity)
+                    
+                    val displayMetrics = resources.displayMetrics
+                    val screenResolution = "${displayMetrics.widthPixels}x${displayMetrics.heightPixels}"
+                    val cpuCoreCount = Runtime.getRuntime().availableProcessors()
+                    
+                    com.example.androidbenchmark.benchmark.BenchmarkResults(
+                        cpuScore = cpuRes,
+                        memoryScore = memoryRes,
+                        gpuScore = gpuRes.score.toLong(),
+                        gpuName = gpuRes.rendererName,
+                        screenResolution = screenResolution,
+                        cpuCoreCount = cpuCoreCount,
+                        cpuFrequency = getCpuFrequency(),
+                        cpuTestResults = allCpuTests,
+                        memoryTestResults = memoryMultipleTests,
+                        memoryInfo = memoryInfo
+                    )
                 }
 
                 val processedResults = resultManager.processResults(results)
                 
                 // Update UI on main thread
-                cpuScoreText.text = "Score: ${results.cpuScore}"
-                memoryScoreText.text = "Score: ${results.memoryScore}"
+                cpuScoreText.text = "Score: ${results.cpuScore} OPS"
+                memoryScoreText.text = "Score: ${results.memoryScore} OPS"
                 gpuScoreText.text = "Score: ${results.gpuScore} FPS"
 
                 chartComposeView.setContent {
@@ -103,6 +166,17 @@ class MainActivity : ComponentActivity() {
                 gpuScoreText.text = "Score: Error"
                 runBenchmarkButton.isEnabled = true
             }
+        }
+    }
+
+    private fun getCpuFrequency(): String {
+        return try {
+            val reader = java.io.BufferedReader(java.io.FileReader("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"))
+            val freq = reader.readLine().trim().toLong() / 1000
+            reader.close()
+            "$freq MHz"
+        } catch (e: Exception) {
+            "Unknown"
         }
     }
     
@@ -194,11 +268,5 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         hideGpuDisplay()
-        
-        // Best-effort cleanup
-        try {
-            benchmarkManager.shutdown()
-        } catch (_: Exception) {
-        }
     }
 }

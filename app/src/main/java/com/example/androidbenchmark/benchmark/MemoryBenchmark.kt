@@ -2,51 +2,186 @@ package com.example.androidbenchmark.benchmark
 
 import kotlin.random.Random
 
+data class MemoryTestResult(
+    val size: Int,
+    val durationMs: Long,
+    val operationsPerSecond: Long,
+    val bandwidthMBps: Double,
+    val runs: Int = 1  // Number of runs averaged
+)
+
 /**
- * Placeholder for Memory benchmark implementation.
- * Implementation will be added later.
+ * Memory benchmark with multiple size tests
+ * IMPROVED: Larger sizes and nanosecond precision for better device differentiation
  */
 class MemoryBenchmark {
-    private var duration: Long = -1L
-    private val matrixSize = 500 // Size of the matrix (N x N)
+    private val testResults = mutableListOf<MemoryTestResult>()
+    private val numRuns = 3  // Run each test 3 times and average
     
-    fun runTest(): Int {
-        // Initialize matrices with random values
-        val matrixA = Array(matrixSize) { IntArray(matrixSize) { Random.nextInt(100) } }
-        val matrixB = Array(matrixSize) { IntArray(matrixSize) { Random.nextInt(100) } }
-        val result = Array(matrixSize) { IntArray(matrixSize) }
+    // Volatile to prevent compiler optimization
+    @Volatile
+    private var preventOptimization: Any? = null
 
-        val startTime = System.currentTimeMillis()
+    /**
+     * Run memory benchmark with multiple matrix sizes
+     * INCREASED SIZES: 200-800 for better differentiation
+     */
+    fun runMultipleSizeTests(): List<MemoryTestResult> {
+        testResults.clear()
+        // INCREASED: Now using 200x200 to 800x800 matrices
+        val sizes = listOf(200, 400, 600, 800, 1000)
+        
+        // Warmup
+        println("Warming up memory benchmark...")
+        runMatrixTestSingle(100)
+        
+        for (size in sizes) {
+            val result = runMatrixTestWithAverage(size, numRuns)
+            testResults.add(result)
+        }
+        
+        return testResults
+    }
+
+    private fun runMatrixTestSingle(size: Int): MemoryTestResult {
+        val matrixA = Array(size) { IntArray(size) { Random.nextInt(100) } }
+        val matrixB = Array(size) { IntArray(size) { Random.nextInt(100) } }
+        val result = Array(size) { IntArray(size) }
+
+        val startTime = System.nanoTime()
         
         // Perform Matrix Multiplication
-        for (i in 0 until matrixSize) {
-            for (j in 0 until matrixSize) {
+        for (i in 0 until size) {
+            for (j in 0 until size) {
                 var sum = 0
-                for (k in 0 until matrixSize) {
+                for (k in 0 until size) {
                     sum += matrixA[i][k] * matrixB[k][j]
                 }
                 result[i][j] = sum
             }
         }
 
-        val endTime = System.currentTimeMillis()
-        duration = endTime - startTime
+        val durationNs = System.nanoTime() - startTime
+        val durationMs = durationNs / 1_000_000
         
-        // Ensure duration is at least 1ms to avoid division by zero
-        if (duration <= 0) duration = 1
+        // Prevent optimization
+        preventOptimization = result[0][0]
         
-        println("Matrix multiplication took ${duration} ms")
-        return duration.toInt()
+        // Calculate operations
+        val operations = size.toLong() * size * size
+        val operationsPerSecond = if (durationNs > 0) {
+            (operations * 1_000_000_000) / durationNs
+        } else {
+            operations * 1000
+        }
+        
+        // Calculate memory bandwidth
+        val bytesTransferred = operations * 12.0
+        val bandwidthMBps = (bytesTransferred / durationMs).coerceAtLeast(1.0) / 1000.0
+        
+        return MemoryTestResult(size, durationMs, operationsPerSecond, bandwidthMBps, 1)
     }
 
-    fun computeMemoryScore(): Long{
-        // Calculate score based on complexity O(N^3)
-        // We scale it to keep the score in a reasonable range
-        val operations = matrixSize.toLong() * matrixSize * matrixSize
-        // operations / duration (ms) gives operations per millisecond.
-        // For 500^3 = 125,000,000 ops.
-        // If it takes 1000ms, score is 125,000.
-        // This aligns well with ResultManager's maxMemory of 100,000.
-        return operations / duration
+    /**
+     * Run matrix test multiple times and return average result
+     * NOW USING NANOSECOND PRECISION
+     */
+    private fun runMatrixTestWithAverage(size: Int, runs: Int): MemoryTestResult {
+        var totalDurationNs = 0L
+        var totalOps = 0L
+        var totalBandwidth = 0.0
+        
+        println("Running matrix test (size=$size) $runs times...")
+        
+        for (run in 1..runs) {
+            val matrixA = Array(size) { IntArray(size) { Random.nextInt(100) } }
+            val matrixB = Array(size) { IntArray(size) { Random.nextInt(100) } }
+            val result = Array(size) { IntArray(size) }
+
+            val startTime = System.nanoTime()
+            
+            // Perform Matrix Multiplication
+            for (i in 0 until size) {
+                for (j in 0 until size) {
+                    var sum = 0
+                    for (k in 0 until size) {
+                        sum += matrixA[i][k] * matrixB[k][j]
+                    }
+                    result[i][j] = sum
+                }
+            }
+
+            val durationNs = System.nanoTime() - startTime
+            
+            // Prevent optimization
+            preventOptimization = result[0][0]
+            
+            totalDurationNs += durationNs
+            
+            // Calculate operations
+            val operations = size.toLong() * size * size
+            val durationMs = durationNs / 1_000_000
+            val operationsPerSecond = if (durationNs > 0) {
+                (operations * 1_000_000_000) / durationNs
+            } else {
+                operations * 1000
+            }
+            totalOps += operationsPerSecond
+            
+            // Calculate memory bandwidth (bytes per second, then convert to MB/s)
+            val bytesTransferred = operations * 12.0  // 2 reads + 1 write = 12 bytes
+            val bandwidthBytesPerSec = if (durationNs > 0) {
+                (bytesTransferred * 1_000_000_000.0) / durationNs
+            } else {
+                bytesTransferred * 1000.0
+            }
+            val bandwidthMBps = bandwidthBytesPerSec / (1024.0 * 1024.0)
+            totalBandwidth += bandwidthMBps
+            
+            println("  Run $run: ${durationMs}ms (${durationNs}ns), $operationsPerSecond OPS, ${bandwidthMBps.toInt()} MB/s")
+        }
+        
+        val avgDurationNs = totalDurationNs / runs
+        val avgDurationMs = avgDurationNs / 1_000_000
+        val avgOps = totalOps / runs
+        val avgBandwidth = totalBandwidth / runs
+        
+        println("Average for size=$size: ${avgDurationMs}ms, $avgOps OPS, ${avgBandwidth.toInt()} MB/s (over $runs runs)")
+        
+        return MemoryTestResult(size, avgDurationMs, avgOps, avgBandwidth, runs)
+    }
+
+    /**
+     * Calculate overall memory score from all test results
+     */
+    fun computeMemoryScore(testResults: List<MemoryTestResult>): Long {
+        if (testResults.isEmpty()) return 0
+        // Average OPS across all tests
+        return testResults.map { it.operationsPerSecond }.average().toLong()
+    }
+    
+    /**
+     * Get system memory information
+     */
+    fun getMemoryInfo(): MemoryInfo {
+        val runtime = Runtime.getRuntime()
+        val maxMemory = runtime.maxMemory() / (1024 * 1024) // Convert to MB
+        val totalMemory = runtime.totalMemory() / (1024 * 1024)
+        val freeMemory = runtime.freeMemory() / (1024 * 1024)
+        val usedMemory = totalMemory - freeMemory
+        
+        return MemoryInfo(
+            totalMB = totalMemory,
+            usedMB = usedMemory,
+            freeMB = freeMemory,
+            maxMB = maxMemory
+        )
     }
 }
+
+data class MemoryInfo(
+    val totalMB: Long,
+    val usedMB: Long,
+    val freeMB: Long,
+    val maxMB: Long
+)

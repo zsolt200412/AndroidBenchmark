@@ -1,9 +1,6 @@
 package com.example.androidbenchmark.benchmark
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
-import java.util.concurrent.Executors
 import kotlin.system.measureTimeMillis
 
 data class BenchmarkResults(
@@ -13,21 +10,36 @@ data class BenchmarkResults(
     val gpuName: String,
     val screenResolution: String,
     val cpuCoreCount: Int,
-    val cpuFrequency: String
+    val cpuFrequency: String,
+    val cpuTestResults: List<CPUTestResult> = emptyList(),
+    val memoryTestResults: List<MemoryTestResult> = emptyList(),
+    val memoryInfo: MemoryInfo? = null
 )
 
 class BenchmarkManager(private val context: Context) {
-    private val executor = Executors.newSingleThreadExecutor()
 
     // Added: Run all benchmarks and return the results for UI consumption
     fun runBenchmarksAndGetResults(): BenchmarkResults {
         val cpuBenchmark = CPUBenchmark()
-        cpuBenchmark.runTest()
-        val cpuRes = cpuBenchmark.computeCpuScore()
+        
+        // Run multiple size tests for CPU
+        val cpuMultipleTests = cpuBenchmark.runMultipleSizeTests()
+        val cpuFloatingPointTests = cpuBenchmark.runMultipleFloatingPointTests()
+        val allCpuTests = cpuMultipleTests + cpuFloatingPointTests
+        
+        // Calculate CPU score from all tests
+        val cpuRes = cpuBenchmark.computeCpuScore(allCpuTests)
 
         val memoryBenchmark = MemoryBenchmark()
-        memoryBenchmark.runTest()
-        val memoryRes = memoryBenchmark.computeMemoryScore()
+        
+        // Run multiple size tests for Memory
+        val memoryMultipleTests = memoryBenchmark.runMultipleSizeTests()
+        
+        // Calculate memory score from all tests
+        val memoryRes = memoryBenchmark.computeMemoryScore(memoryMultipleTests)
+        
+        // Get memory info
+        val memoryInfo = memoryBenchmark.getMemoryInfo()
 
         val gpuBenchmark = GPUBenchmark()
         val gpuRes = gpuBenchmark.runTest(context)
@@ -45,7 +57,10 @@ class BenchmarkManager(private val context: Context) {
             gpuName = gpuRes.rendererName,
             screenResolution = screenResolution,
             cpuCoreCount = cpuCoreCount,
-            cpuFrequency = cpuFrequency
+            cpuFrequency = cpuFrequency,
+            cpuTestResults = allCpuTests,
+            memoryTestResults = memoryMultipleTests,
+            memoryInfo = memoryInfo
         )
     }
     
@@ -59,12 +74,5 @@ class BenchmarkManager(private val context: Context) {
         } catch (e: Exception) {
             "Unknown"
         }
-    }
-    
-    /**
-     * Shutdown internal resources used by the benchmark manager.
-     */
-    fun shutdown() {
-        executor.shutdownNow()
     }
 }
