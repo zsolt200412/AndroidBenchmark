@@ -52,20 +52,29 @@ class CPUBenchmark {
     fun runFloatingPointTest(iterations: Int = 1000000): CPUTestResult {
         val start = System.nanoTime()
         var result = 0.0
+        var piApprox = 0.0
         
         for (i in 0 until iterations) {
             val x = i.toDouble()
             result += sin(x) * cos(x) + sqrt(x.absoluteValue) + x.pow(1.5)
+            
+            // Add Pi calculation using Gregory-Leibniz series term per iteration
+            val sign = if (i % 2 == 0) 1.0 else -1.0
+            val denom = 2.0 * i + 1.0
+            piApprox += 4.0 * sign / denom
         }
         
         val durationNs = System.nanoTime() - start
         val durationMs = durationNs / 1_000_000
         
         // Prevent optimization
-        preventOptimization = result
+        preventOptimization = result + piApprox
         
         // Calculate FLOPS (floating-point operations per second)
-        val operations = iterations * 6L
+        // Ops per iteration: sin, cos, sqrt, pow, 2 multiplies, 1 add (from original) = 6
+        // Plus Pi term: 2 multiplies (4*sign and 2*i), 1 add ( +1), 1 division, 1 add to accumulator = 5
+        // Total ~11 FP ops per iteration
+        val operations = iterations * 11L
         val operationsPerSecond = if (durationMs > 0) {
             (operations * 1000) / durationMs
         } else {
@@ -73,6 +82,7 @@ class CPUBenchmark {
         }
         
         println("Floating-point test: $iterations iterations in $durationMs ms")
+        println("Approximated π (Gregory–Leibniz, $iterations terms): $piApprox")
         
         return CPUTestResult(iterations, durationMs, operationsPerSecond, 1)
     }
@@ -194,20 +204,27 @@ class CPUBenchmark {
         for (run in 1..runs) {
             val start = System.nanoTime()
             var result = 0.0
+            var piApprox = 0.0
             
             for (i in 0 until iterations) {
                 val x = i.toDouble()
                 result += sin(x) * cos(x) + sqrt(x.absoluteValue) + x.pow(1.5)
+                
+                // Pi calculation term per iteration (Gregory-Leibniz)
+                val sign = if (i % 2 == 0) 1.0 else -1.0
+                val denom = 2.0 * i + 1.0
+                piApprox += 4.0 * sign / denom
             }
             
             val durationNs = System.nanoTime() - start
             
             // Prevent optimization
-            preventOptimization = result
+            preventOptimization = result + piApprox
             
             totalDurationNs += durationNs
             
-            val operations = iterations * 6L
+            // Ops per iteration ~11 (see above)
+            val operations = iterations * 11L
             val durationMs = durationNs / 1_000_000
             val operationsPerSecond = if (durationNs > 0) {
                 (operations * 1_000_000_000) / durationNs
@@ -217,6 +234,7 @@ class CPUBenchmark {
             totalOps += operationsPerSecond
             
             println("  Run $run: ${durationMs}ms (${durationNs}ns), $operationsPerSecond OPS")
+            println("  Run $run π approximation ($iterations terms): $piApprox")
         }
         
         val avgDurationNs = totalDurationNs / runs

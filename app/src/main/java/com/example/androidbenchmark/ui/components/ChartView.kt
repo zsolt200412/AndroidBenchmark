@@ -103,6 +103,12 @@ fun ChartView(result: ResultManager.ProcessedResult?) {
         DeviceInfoRow("CPU", "${result.cpuCoreCount} Cores @ ${result.cpuFrequency}")
         DeviceInfoRow("GPU", result.gpuName)
         DeviceInfoRow("Resolution", result.screenResolution)
+        
+        // Added: RAM and Battery information (formatted to GB where applicable)
+        result.totalRamMB?.let { DeviceInfoRow("Total RAM", formatGb(it)) }
+        result.availableRamMB?.let { DeviceInfoRow("Available RAM", formatGb(it)) }
+        result.batteryLevelPercent?.let { DeviceInfoRow("Battery Level", "$it%") }
+        result.batteryCapacityMah?.let { DeviceInfoRow("Battery Capacity", String.format("%.0f mAh", it)) }
     }
 }
 
@@ -192,13 +198,13 @@ fun PerformanceGraphCard(
             // Show averaging info if applicable
             if (testResults.isNotEmpty() && testResults.first().runs > 1) {
                 Text(
-                    text = "Averaged over ${testResults.first().runs} runs",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-            
+
+            text = "Averaged over ${testResults.first().runs} runs",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
             // Graph
             Canvas(
                 modifier = Modifier
@@ -383,6 +389,11 @@ fun formatLargeNumber(number: Long): String {
         number >= 1_000 -> String.format("%.2fK", number / 1_000.0)
         else -> number.toString()
     }
+}
+
+private fun formatGb(mb: Long): String {
+    val gb = mb / 1024.0
+    return String.format("%.1f GB", gb)
 }
 
 @Composable

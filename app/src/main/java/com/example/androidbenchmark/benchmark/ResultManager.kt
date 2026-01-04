@@ -22,7 +22,11 @@ class ResultManager {
         val cpuIntegerTestResults: List<CPUTestResult> = emptyList(),
         val cpuFloatingPointTestResults: List<CPUTestResult> = emptyList(),
         val memoryTestResults: List<MemoryTestResult> = emptyList(),
-        val memoryInfo: MemoryInfo? = null
+        val memoryInfo: MemoryInfo? = null,
+        val totalRamMB: Long? = null,
+        val batteryLevelPercent: Int? = null,
+        val batteryCapacityMah: Double? = null,
+        val availableRamMB: Long? = null
     )
 
     fun processResults(results: BenchmarkResults): ProcessedResult {
@@ -49,7 +53,11 @@ class ResultManager {
             cpuIntegerTestResults = integerTests,
             cpuFloatingPointTestResults = floatingPointTests,
             memoryTestResults = results.memoryTestResults,
-            memoryInfo = results.memoryInfo
+            memoryInfo = results.memoryInfo,
+            totalRamMB = results.totalRamMB,
+            batteryLevelPercent = results.batteryLevelPercent,
+            batteryCapacityMah = results.batteryCapacityMah,
+            availableRamMB = results.availableRamMB
         )
     }
 }
